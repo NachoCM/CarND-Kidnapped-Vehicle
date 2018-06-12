@@ -73,17 +73,6 @@ void ParticleFilter::dataAssociation(std::vector<LandmarkObs> predicted, std::ve
 	// NOTE: this method will NOT be called by the grading code. But you will probably find it useful to 
 	//   implement this method and use it as a helper during the updateWeights phase.
 
-	for (auto& o:observations){
-		o.id=0;
-		double min_dist=std::numeric_limits<double>::max();
-		for (auto& p:predicted){
-			double distance=dist(o.x,o.y,p.x,p.y);
-			if (distance<min_dist){
-				o.id=p.id;
-				min_dist=distance;
-			}
-		}
-	}
 }
 
 void ParticleFilter::updateWeights(double sensor_range, double std_landmark[], 
@@ -100,20 +89,24 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 	//   http://planning.cs.uiuc.edu/node99.html
 	for (auto& p:particles){
 		std::vector<LandmarkObs> transformed_obs;
+		//Initialize current particle weight
 		p.weight=1;
 
+		//Transform observations to map coordinate system
 		for (auto& car_obs:observations){
 			LandmarkObs map_obs;
 			map_obs.x=p.x + cos(p.theta)*car_obs.x - sin(p.theta)*car_obs.y;
 			map_obs.y=p.y + sin(p.theta)*car_obs.x + cos(p.theta)*car_obs.y;
 			transformed_obs.push_back(map_obs);
 		}
-		//TODO: Filter landmarks out of sensor range
-		//dataAssociation(map_landmarks,transformed_obs);
 
 		for (auto& o:transformed_obs){
+			//Initialize landmark associated to current observation and distance to 
+			//nearest neighbour
 			o.id=0;
 			double min_dist=std::numeric_limits<double>::max();
+
+			//Traverse map landmarks (filter using sensor range would imply additional computation)
 			for (int i = 0;i < map_landmarks.landmark_list.size();i++){
 				Map::single_landmark_s l=map_landmarks.landmark_list[i];
 				double distance=dist(o.x,o.y,l.x_f,l.y_f);
@@ -123,37 +116,22 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 				}
 			}
 
-			if (o.id!=0){
-				double landmark_x=map_landmarks.landmark_list[o.id].x_f;
-				double landmark_y=map_landmarks.landmark_list[o.id].y_f;
-				long double gauss_norm = 1/(2*M_PI*std_landmark[0]*std_landmark[1]);
-				long double exponent = pow(o.x - landmark_x,2)/(2*pow(std_landmark[0],2)) + pow(o.y - landmark_y,2)/(2*pow(std_landmark[1],2));
-				long double weight = gauss_norm * exp(-exponent);
-				if (weight>0){
-					p.weight*=weight;
-				}
+			//Extract landmark coordinates
+			double landmark_x=map_landmarks.landmark_list[o.id].x_f;
+			double landmark_y=map_landmarks.landmark_list[o.id].y_f;
+
+			//Calculate weight for current particle
+			long double gauss_norm = 1/(2*M_PI*std_landmark[0]*std_landmark[1]);
+			long double exponent = pow(o.x - landmark_x,2)/(2*pow(std_landmark[0],2)) + pow(o.y - landmark_y,2)/(2*pow(std_landmark[1],2));
+			long double weight = gauss_norm * exp(-exponent);
+			if (weight>0){
+				p.weight*=weight;
 			}
+
 			p.associations.push_back(o.id+1);
 			p.sense_x.push_back(o.x);
 			p.sense_y.push_back(o.y);
 		}
-		/*
-		p.weight=1;
-		for (auto& o:transformed_obs){
-			if (o.id!=0){
-				double landmrk_x=map_landmarks.landmark_list[o.id].x_f;
-				double landmark_y=map_landmarks.landmark_list[o.id].y_f;
-				long double gauss_norm = 1/(2*M_PI*std_landmark[0]*std_landmark[1]);
-				long double exponent = pow(o.x - landmark_x,2)/(2*pow(std_landmark[0],2)) + pow(o.y - landmark_y,2)/(2*pow(std_landmark[1],2));
-				long double weight = gauss_norm * exp(-exponent);
-				if (weight>0){
-					p.weight*=weight;
-				}
-			}
-			p.associations.push_back(o.id+1);
-			p.sense_x.push_back(o.x);
-			p.sense_y.push_back(o.y);
-		}*/
 	}
 	
 
